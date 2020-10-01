@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
-
 set -e
+
+MALWARE_FOUND_LIST="$(mktemp)"
+
+DEFAULT_JOBS="$(nproc)"
+JOBS=${JOBS:-${DEFAULT_JOBS}}
 
 if [ -n "${DISABLE_COLOR}" ] || [ -n "${DISABLE_COLOUR}" ]; then
 	NORMAL=""
@@ -33,15 +37,48 @@ function is_match() {
 		NO="${RED}𐄂${NORMAL}"
 	fi
 
-	if rg -uuuqi "$1"; then
+	if rg -qi "${1}" "${MALWARE_FOUND_LIST}"; then
 		echo "${YES}"
 	else
 		echo "${NO}"
 	fi
 }
 
+function check_for_match() {
+	if rg -uuuqi "${1}"; then
+		echo "${1}" >> "${MALWARE_FOUND_LIST}"
+	fi
+}
+
+function search_job() {
+	if [ "${JOBS}" -le 1 ]; then
+		check_for_match "${1}"
+		return
+	fi
+
+	jobcount=$(jobs -p | wc -l)
+	while [ "${jobcount}" -ge "${JOBS}" ]; do
+		sleep 1
+		jobcount=$(jobs -p | wc -l)
+	done
+	check_for_match "${1}" &
+}
 
 function check_spyware() {
+	search_job "aliyun"
+	search_job "yunos"
+	search_job "umeng"
+	search_job "tencent"
+	search_job "bytedance"
+	search_job "baidu"
+	search_job "/proc/cpuinfo"
+	search_job "/proc/meminfo"
+	search_job "/proc/%d/mounts"
+	search_job "magisk"
+	search_job "imei"
+
+	wait
+
 	ALIYUN=$(is_match "aliyun")
 	YUNOS=$(is_match "yunos")
 	UMENG=$(is_match "umeng")
@@ -71,18 +108,27 @@ function print_report() {
 	echo -e "IMEI mention: ${IMEIMENTION}"
 }
 
+
+
 if [ -z "${1}" ]; then
 	echo "Usage: ./csd.sh (APK path)"
 	exit 1
 else
 	echo "Disassembling APK..."
-	APKFOLDER="$(mktemp -d)"
-	java -jar apktool.jar -f -o "${APKFOLDER}" d "${1}"
+	if [ ! -d "${1}" ]; then
+		APKFOLDER="$(mktemp -d)"
+		java -jar apktool.jar -f -o "${APKFOLDER}" d "${1}"
+	else 
+		APKFOLDER="${1}"
+	fi
 	pushd "${APKFOLDER}" >/dev/null || exit
 	echo "Analyzing APK..."
 	check_spyware
 	popd >/dev/null|| exit
-	echo "Cleaning up..."
-	rm -rf "${APKFOLDER}"
+	if [ ! -d "${1}" ]; then
+		echo "Cleaning up..."
+		rm -rf "${APKFOLDER}"
+	fi
 	print_report "${1}"
+	rm -f "${MALWARE_FOUND_LIST}"
 fi
