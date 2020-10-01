@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 NORMAL="\e[0m"
 BOLD="\e[1m"
@@ -9,65 +9,30 @@ GREEN="\e[32m"
 YES="${GREEN}✓${NORMAL}"
 NO="${RED}𐄂${NORMAL}"
 
-check_spyware() {
-	if grep -qri "aliyun"; then
-		ALIYUN=${YES}
+function is_match() {
+	if rg -uuuqi "$1"; then
+		echo "${YES}"
 	else
-		ALIYUN=${NO}
-	fi
-	if grep -qri "yunos"; then
-		YUNOS=${YES}
-	else
-		YUNOS=${NO}
-	fi
-	if grep -qri "umeng"; then
-		UMENG=${YES}
-	else
-		UMENG=${NO}
-	fi
-	if grep -qri "tencent"; then
-		TENCENT=${YES}
-	else
-		TENCENT=${NO}
-	fi
-	if grep -qri "bytedance"; then
-		BYTEDANCE=${YES}
-	else
-		BYTEDANCE=${NO}
-	fi
-	if grep -qri "baidu"; then
-		BAIDU=${YES}
-	else
-		BAIDU=${NO}
-	fi
-	if grep -qri "/proc/cpuinfo"; then
-		CPUINFO=${YES}
-	else
-		CPUINFO=${NO}
-	fi
-	if grep -qri "/proc/meminfo"; then
-		MEMINFO=${YES}
-	else
-		MEMINFO=${NO}
-	fi
-	if grep -qri "/proc/%d/mounts"; then
-		MNTCHECK=${YES}
-	else
-		MNTCHECK=${NO}
-	fi
-	if grep -qri "Magisk"; then
-		MAGISKMENTION=${YES}
-	else
-		MAGISKMENTION=${NO}
-	fi
-	if grep -qri "IMEI"; then
-		IMEIMENTION=${YES}
-	else
-		IMEIMENTION=${NO}
+		echo "${NO}"
 	fi
 }
 
-print_report() {
+
+function check_spyware() {
+	ALIYUN=$(is_match "aliyun")
+	YUNOS=$(is_match "yunos")
+	UMENG=$(is_match "umeng")
+	TENCENT=$(is_match "tencent")
+	BYTEDANCE=$(is_match "bytedance")
+	BAIDU=$(is_match "baidu")
+	CPUINFO=$(is_match "/proc/cpuinfo")
+	MEMINFO=$(is_match "/proc/meminfo")
+	MNTCHECK=$(is_match "/proc/%d/mounts")
+	MAGISKMENTION=$(is_match "magisk")
+	IMEIMENTION=$(is_match "imei")
+}
+
+function print_report() {
 	clear
 	echo -e "${BOLD}${1} Report:${NORMAL}"
 	echo -e "Aliyun: ${ALIYUN}"
@@ -83,18 +48,17 @@ print_report() {
 	echo -e "IMEI mention: ${IMEIMENTION}"
 }
 
-if [ -z ${1} ]; then
+if [ -z "${1}" ]; then
 	echo "Usage: ./csd.sh (APK path)"
 else
 	echo "Disassembling APK..."
-	java -jar apktool.jar d ${1}
-	APKFOLDER=${1%.*}
-	OLDDIR=$(pwd)
-	cd ${APKFOLDER}
+	java -jar apktool.jar d "${1}"
+	APKFOLDER="${1%.*}"
+	pushd "${APKFOLDER}" || exit
 	echo "Analyzing APK..."
 	check_spyware
-	cd ${OLDDIR}
+	popd || exit
 	echo "Cleaning up..."
-	rm -rf ${APKFOLDER}
-	print_report ${1}
+	rm -rf "${APKFOLDER}"
+	print_report "${1}"
 fi
