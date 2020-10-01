@@ -1,15 +1,38 @@
 #!/usr/bin/env bash
 
-NORMAL="\e[0m"
-BOLD="\e[1m"
+set -e
 
-RED="\e[31m"
-GREEN="\e[32m"
+if [ -n "${DISABLE_COLOR}" ] || [ -n "${DISABLE_COLOUR}" ]; then
+	NORMAL=""
+	BOLD=""
+	RED=""
+	GREEN=""
+else
+	NORMAL="\e[0m"
+	BOLD="\e[1m"
+	RED="\e[31m"
+	GREEN="\e[32m"
+fi
 
-YES="${GREEN}✓${NORMAL}"
-NO="${RED}𐄂${NORMAL}"
+function random_yes() {
+	shuf -n 1 -e "Yep!~" "Yup~" "Yes!" "Absolutely!" "Extremely Likely.." "Indeed~"
+}
+
+function random_no() {
+	shuf -n 1 -e "Nope!" "No~" "Null." "None!" "Nah~"
+}
 
 function is_match() {
+	if [ -n "${PLAINTEXT}" ]; then
+		# shellcheck disable=SC2046
+		YES=$(printf "${GREEN}%s${NORMAL}" $(random_yes))
+		# shellcheck disable=SC2046
+		NO=$(printf "${RED}%s${NORMAL}" $(random_no))
+	else
+		YES="${GREEN}✓${NORMAL}"
+		NO="${RED}𐄂${NORMAL}"
+	fi
+
 	if rg -uuuqi "$1"; then
 		echo "${YES}"
 	else
@@ -33,7 +56,7 @@ function check_spyware() {
 }
 
 function print_report() {
-	clear
+	[ -z "${CLEAR_SCREEN}" ] && clear
 	echo -e "${BOLD}${1} Report:${NORMAL}"
 	echo -e "Aliyun: ${ALIYUN}"
 	echo -e "YunOS: ${YUNOS}"
@@ -50,14 +73,15 @@ function print_report() {
 
 if [ -z "${1}" ]; then
 	echo "Usage: ./csd.sh (APK path)"
+	exit 1
 else
 	echo "Disassembling APK..."
-	java -jar apktool.jar d "${1}"
-	APKFOLDER="${1%.*}"
-	pushd "${APKFOLDER}" || exit
+	APKFOLDER="$(mktemp -d)"
+	java -jar apktool.jar -f -o "${APKFOLDER}" d "${1}"
+	pushd "${APKFOLDER}" >/dev/null || exit
 	echo "Analyzing APK..."
 	check_spyware
-	popd || exit
+	popd >/dev/null|| exit
 	echo "Cleaning up..."
 	rm -rf "${APKFOLDER}"
 	print_report "${1}"
